@@ -58,6 +58,7 @@ def callback(data):
     if (data.data=="Initialize Counter"):
         percent = 0
         keepCounting = False
+        pub.publish(0)
 
     elif (data.data=="Turn Off Sentry"):
         keepCounting = False
@@ -65,8 +66,8 @@ def callback(data):
 
     elif (data.data=="Started Sanitizing the Room"):
         if (percent==100):
-            percent=0
-            keepCounting = True
+            #percent=0
+            keepCounting = False
         else:
             keepCounting = True
     
@@ -101,10 +102,10 @@ def listener():
 
     #while ROS is not shutdown via terminal etc, if the conditions are met, publish counting from 0 to 100
     while not rospy.is_shutdown():
-        if (percent < 101 and keepCounting):
+        if (percent < 100 and keepCounting):
+            percent +=1
             rospy.loginfo("The percent is: " + str(percent))
             pub.publish(percent)
-            percent +=1
         rate.sleep()
    
     # spin() simply keeps python from exiting until this node is stopped
