@@ -33,22 +33,32 @@
 #
 # Revision $Id$
 
-## Simple talker demo that listens to std_msgs/Strings published 
-## to the 'chatter' topic
+                        ###note###
+# ____________________________________________________
+#|This is a ROS node that listens to a message from   |
+#|the browser.                                        |
+#|It is for creating and saving report files and      |
+#|sending the data in one string variable.            |
+#|See accompanying flowchart for overall operation    |
+#|This node is a combination of a subscriber          |
+#|and publisher.                                      |
+#|You must alter the path to the reports.txt for      |
+#|different users                                     |
+#|____________________________________________________|
+
 
 import rospy
 from std_msgs.msg import String
 from std_msgs.msg import Int32
 from multiprocessing import Process, Pipe
 import thread
+#variable to tell when to start sending the data from the file to the browser
+#it is unused
 startSending = 0
 
 
 
 
-#This node is a combination of a subscriber and publisher
-
-#It is for creating and saving report files and sending the data in one string
 
 #this callback function gets called whenever a message is recieved
 #it pushes the message to the terminal for us to confirm what happened
@@ -62,8 +72,10 @@ def callback(data):
         startSending=0
     elif (data.data=="Send Report"):
         #startSending=1
-        with open("/home/uwi/catkin_ws/src/human_detection/scripts/reports.txt",'r') as f:
+        #open file and read the file into temp variable
+        with open("/home/uwi/catkin_ws/src/browser_communication/scripts/reports.txt",'r') as f:
             temp=f.read().splitlines()
+        #publish the variable to the browser
         pub.publish(str(temp))
 
 
@@ -71,10 +83,13 @@ def callback(data):
     elif (data.data=="Recieved Report"):
         startSending=0
     elif (data.data=="Clear Report"):
-        f=open("/home/uwi/catkin_ws/src/human_detection/scripts/reports.txt","w")
+        #open the file such that it clears everything then close it
+        f=open("/home/uwi/catkin_ws/src/browser_communication/scripts/reports.txt","w")
         f.close()
     else:
-        with open("/home/uwi/catkin_ws/src/human_detection/scripts/reports.txt", 'a') as f:
+        #if the data is not recognized, this means that user data is coming in
+        #open the file and write to it the incoming data
+        with open("/home/uwi/catkin_ws/src/browser_communication/scripts/reports.txt", 'a') as f:
             f.write(data.data+"\n")
         rospy.loginfo(rospy.get_caller_id() + 'this is a test')
 

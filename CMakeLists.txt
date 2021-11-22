@@ -160,7 +160,7 @@ include_directories(
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
  catkin_install_python(PROGRAMS
-   scripts/browser_reports.py scripts/browser_sanitation_percentage.py
+   scripts/browser_reports.py scripts/heartbeat_jetson_remote.py
    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
  )
 
