@@ -61,15 +61,16 @@ import thread
 ##########VARIABLES##########
 
 reset = False
-#awaiting_response is used to keep track of if connected message was received
-#also it tells the counter if it has already passed 30s without 
-#receiving the connected message
+#awaiting_response is the "has a connection request been sent?" variable,
+#if it is true, and a response message is not received after 30s,
+#then the connection to the remote is lost
 awaiting_response = False
-#the connection request variable
-#this variable tells the node if the user has pressed the start button
-#so that it can only check for connection when sanitation is happening
+
+#this variable tells the node if the user has pressed the start sanitization button,
+#so that it can only check for connection while sanitation is happening
 start_sanitization_pressed = False
-#this variable is for if within 30s a connected  message was received or not
+
+#this variable is for if within 30s a connected message was received or not
 no_connection_confirmed = False
 
 
@@ -84,7 +85,7 @@ def callback(data):
     #is connecte to rosbridge
     if (data.data=="connected"): #this also continues timing
 
-        rospy.loginfo("conencted")
+        rospy.loginfo("connected to remote")
         #if the browser returns that it is connected within 30s of requesting, 
         #awaiting_response is set to false
         #else if it remains true after 30s then the remote is not connected
@@ -100,6 +101,13 @@ def callback2(data):
     #if the start message was received set this variable to true
     if (data.data=="start_sanitization"):
         start_sanitization_pressed=True
+    elif (data.data=="turn_off_sanitization"):
+        #this node is alive even when the user isn't sanitizing, 
+        #so this ensures this node doesn't send the shutdown message 
+        #while the user is on another page on the remote
+        start_sanitization_pressed=False
+        no_connection_confirmed=False
+        rospy.loginfo("sanitization was stopped by the user, no more checking communication")
         
 #this function is for subscribing to messages
 def listener():
@@ -153,6 +161,8 @@ def listener():
             elif (i==t and awaiting_response==True):
                 #publish turn off sentry
                 pub_heartbeat_state_machine.publish("turn_off_sentry")
+                start_sanitization_pressed=False
+                no_connection_confirmed=True
             #wait for 1s
             rate.sleep()
         #if no conenction was seen within 30s after requesting it keep 
@@ -160,6 +170,7 @@ def listener():
         elif no_connection_confirmed:
             #publish turn off sentry
             pub_heartbeat_state_machine.publish("turn_off_sentry")
+            rospy.logfatal("No communication with remote, shutting down entire system")
             #wait for 1s
             rate.sleep()
 
