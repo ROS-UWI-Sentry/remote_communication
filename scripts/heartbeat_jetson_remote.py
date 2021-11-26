@@ -68,7 +68,7 @@ awaiting_response = False
 
 #this variable tells the node if the user has pressed the start sanitization button,
 #so that it can only check for connection while sanitation is happening
-start_sanitization_pressed = False
+on_sanitization_page = False
 
 #this variable is for if within 30s a connected message was received or not
 no_connection_confirmed = False
@@ -84,28 +84,26 @@ def callback(data):
     #check if the message recieved is "connected" so we know that the remote 
     #is connecte to rosbridge
     if (data.data=="connected"): #this also continues timing
-
         rospy.loginfo("connected to remote")
         #if the browser returns that it is connected within 30s of requesting, 
         #awaiting_response is set to false
         #else if it remains true after 30s then the remote is not connected
         awaiting_response = False
-    
+    elif (data.data=="on_sanitization_page"):
+        on_sanitization_page=True    
     else:
         rospy.logwarn("Incorrect data received.")
 
 
 def callback2(data):
     rospy.loginfo(rospy.get_caller_id() + 'I heard: %s', data.data)
-    global start_sanitization_pressed
+    global on_sanitization_page
     #if the start message was received set this variable to true
-    if (data.data=="start_sanitization"):
-        start_sanitization_pressed=True
-    elif (data.data=="turn_off_sanitization"):
+    if (data.data=="turn_off_sanitization"):
         #this node is alive even when the user isn't sanitizing, 
         #so this ensures this node doesn't send the shutdown message 
         #while the user is on another page on the remote
-        start_sanitization_pressed=False
+        on_sanitization_page=False
         no_connection_confirmed=False
         rospy.loginfo("sanitization was stopped by the user, no more checking communication")
         
@@ -119,7 +117,7 @@ def listener():
     # run simultaneously.
     #check for message on Topic
 
-    global reset, awaiting_response, start_sanitization_pressed, no_connection_confirmed #percent
+    global reset, awaiting_response, on_sanitization_page, no_connection_confirmed #percent
 
     #this call creates a subscriber and defines message type and which topic it publishes to
     #whenever a message is received it calls the callback function
@@ -138,7 +136,7 @@ def listener():
     #while ROS is not shutdown via terminal etc, if the conditions are met:
     while not rospy.is_shutdown() :
         #only if the user starts sanitization, start counting
-        if start_sanitization_pressed:
+        if on_sanitization_page:
             #if i is less than t
             if (i<t):
                 now = rospy.get_time()  
@@ -146,22 +144,23 @@ def listener():
                 rospy.loginfo(i)
                 #increment i
                 i = i + 1
-            #if i is the value of t and this is the first run or 
-            #the connection was confirmed
+            #if i is the value of t(t seconds passed) and this is the first run or 
+            #the connection was confirmed(response received)
             elif (i==t and awaiting_response==False):
                 #reset i
-                i = 0 
+                i = 0
+                #request the remote to confrim its connection
+                pub_heartbeat_ros_remote.publish("connection_test")                   
                 #set awaiting_response to true, so if in 30s no confirmation is received
                 #this condition will be skipped and the other one will be carried out
                 awaiting_response = True
-                #request the remote to confrim its connection
-                pub_heartbeat_ros_remote.publish("connection_test")  
-            #if i is the value of t and no confirmation was received
-            #to set awaiting_response to False        
+            #if i is the value of t(t seconds passed) and the connection was not confirmed(no response was received)
+            #that would of set awaiting_response to False        
             elif (i==t and awaiting_response==True):
                 #publish turn off sentry
                 pub_heartbeat_state_machine.publish("turn_off_sentry")
-                start_sanitization_pressed=False
+                on_sanitization_page=False
+                #to break the loop and keep publishing at a set rate
                 no_connection_confirmed=True
             #wait for 1s
             rate.sleep()
