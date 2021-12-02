@@ -58,7 +58,7 @@ import thread
 
 
 
-##########VARIABLES##########
+##########GLOBAL VARIABLES##########
 
 reset = False
 #awaiting_response is the "has a connection request been sent?" variable,
@@ -66,44 +66,50 @@ reset = False
 #then the connection to the remote is lost
 awaiting_response = False
 
-#this variable tells the node if the user has pressed the start sanitization button,
+#this variable tells the node if the user is on the sanitization page,
 #so that it can only check for connection while sanitation is happening
-on_sanitization_page = False
+heartbeat = False
 #this variable is for if within 30s a connected message was received or not
 no_connection_confirmed = False
 
 
-#this callback function gets called whenever a message is recieved
+#this callback function gets called whenever a message is received
 #it pushes the message to the terminal for us to confirm what happened
 #and it checks the value of the message and performs actions based on it
-def callback(data):
-    rospy.loginfo(rospy.get_caller_id() + ' I heard: %s', data.data)
-    global reset, awaiting_response, on_sanitization_page #percent 
+def callback_heartbeat(data):
+    global reset, awaiting_response, heartbeat #percent 
 
-    #check if the message recieved is "connected" so we know that the remote 
-    #is connecte to rosbridge
+    rospy.loginfo(rospy.get_caller_id() + ' I heard: %s', data.data)
+    
+    #check if the message received is "connected" so we know that the remote 
+    #is connected to rosbridge
     if (data.data=="connected"): #this also continues timing
         rospy.loginfo("connected to remote")
         #if the browser returns that it is connected within 30s of requesting, 
         #awaiting_response is set to false
         #else if it remains true after 30s then the remote is not connected
         awaiting_response = False
+        #we cannot set heartbeat=True here because whenever it is false 
+        #the system will be shutting down
     elif (data.data=="on_sanitization_page"):
-        rospy.logfatal("got the message")
-        on_sanitization_page=True    
+        rospy.loginfo("received that the user is on the sanitzation page")
+        #start the process of heartbeating
+        heartbeat=True 
+        #in the event of reconnection we have to stop what happens while connection lost
+        awaiting_response = False  
     else:
         rospy.logwarn("Incorrect data received.")
 
 
-def callback2(data):
+def callback_sentry_control_topic(data):
     rospy.loginfo(rospy.get_caller_id() + 'I heard: %s', data.data)
-    global on_sanitization_page, no_connection_confirmed
+    global heartbeat, no_connection_confirmed
     #if the start message was received set this variable to true
     if (data.data=="turn_off_sanitization"):
         #this node is alive even when the user isn't sanitizing, 
         #so this ensures this node doesn't send the shutdown message 
         #while the user is on another page on the remote
-        on_sanitization_page=False
+        heartbeat=False
         no_connection_confirmed=False
         rospy.loginfo("sanitization was stopped by the user, no more checking communication")
         
@@ -117,26 +123,32 @@ def listener():
     # run simultaneously.
     #check for message on Topic
 
-    global reset, awaiting_response, on_sanitization_page, no_connection_confirmed #percent
+    global reset, awaiting_response, heartbeat, no_connection_confirmed #percent
 
     #this call creates a subscriber and defines message type and which topic it publishes to
     #whenever a message is received it calls the callback function
-    rospy.Subscriber('/heartbeat_rx', String, callback)
+    rospy.Subscriber('/heartbeat_rx', String, callback_heartbeat)
 
-    rospy.Subscriber('/sentry_control_topic', String, callback2)
+    rospy.Subscriber('/sentry_control_topic', String, callback_sentry_control_topic)
 
     #this value is a sleep value
     rate = rospy.Rate(1) #1Hz
     
+    ######listener variables ######
 
     #counting variable
     i = 0
     #how much to count up to
     t = 30
+
+    #variable to check how many times "t" seconds has passed
+    #checks how many times a connection request was not replied to 
+    c = 0
+
     #while ROS is not shutdown via terminal etc, if the conditions are met:
     while not rospy.is_shutdown() :
         #only if the user starts sanitization, start counting
-        if on_sanitization_page:
+        if heartbeat:
             #if i is less than t
             if (i<t):
                 now = rospy.get_time()  
@@ -147,32 +159,47 @@ def listener():
             #if i is the value of t(t seconds passed) and this is the first run or 
             #the connection was confirmed(response received)
             elif (i==t and awaiting_response==False):
-                #reset i
+                #reset i to restart the count
                 i = 0
+                #if the connection is restored, reset this variable to 
+                #be able to count how many times a connection
+                #request was not replied to 
+                c = 0
                 #request the remote to confrim its connection
                 pub_heartbeat_ros_remote.publish("connection_test")
-                rospy.loginfo("conneciton test")                   
+                rospy.loginfo("Connection request sent.")                   
                 #set awaiting_response to true, so if in 30s no confirmation is received
                 #this condition will be skipped and the other one will be carried out
                 awaiting_response = True
-            #if i is the value of t(t seconds passed) and the connection was not confirmed(no response was received)
-            #that would of set awaiting_response to False        
+            #if i equals the value of t(t seconds passed) 
+            #and the connection was not confirmed(no response was received)
+            #within that time to set awaiting_response to False:        
             elif (i==t and awaiting_response==True):
-                #publish turn off sentry
+                #publish pause sanitization
+                #if no response from the remote is obtained, this should
+                #this should ensure that the UV lights are off.
                 pub_heartbeat_state_machine.publish("pause_sanitization")
-                on_sanitization_page=False
-                #to break the loop and keep publishing at a set rate
-                no_connection_confirmed=True
-            #wait for 1s
-            rate.sleep()
-        #if no conenction was seen within 30s after requesting it keep 
+                #reset i so we can keep asking for connection
+                i = 0
+                #increment how many times this condition was entered
+                c = c + 1
+                rospy.loginfo("Connection request sent %s times.", c)
+                #has 6*t seconds (3 minutes) passed with no response from remote?
+                #or have we entered this condition 6 times?
+                if (c==6):
+                    #to break the loop and keep publishing at a set rate
+                    heartbeat=False
+                    no_connection_confirmed=True
+
+        #if no conenction was seen within c*t seconds after requesting it keep 
         #publishing to turn off sentry
         elif no_connection_confirmed:
             #publish turn off sentry
-            pub_heartbeat_state_machine.publish("pause_sanitization")
-            rospy.logfatal("No communication with remote, shutting down entire system")
-            #wait for 1s
-            rate.sleep()
+            pub_heartbeat_state_machine.publish("turn_off_sentry")
+            rospy.logfatal("No communication with remote after %s seconds, shutting down entire system", c*t)
+ 
+        #wait for 1s
+        rate.sleep()
 
 
     # spin() simply keeps python from exiting until this node is stopped
