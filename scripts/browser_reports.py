@@ -73,23 +73,23 @@ def callback(data):
     elif (data.data=="Send Report"):
         #startSending=1
         #open file and read the file into temp variable
-        with open("/home/uwi/catkin_ws/src/remote_communication/scripts/reports.txt",'r') as f:
+        with open("/home/uwi-sentry-agx/catkin_ws/src/remote_communication/scripts/reports.txt",'r') as f:
             temp=f.read().splitlines()
         #publish the variable to the remote
         pub.publish(str(temp))
 
 
-        rospy.loginfo("sent table")        
+        rospy.loginfo(rospy.get_caller_id() +" sent table")        
     elif (data.data=="Recieved Report"):
         startSending=0
     elif (data.data=="Clear Report"):
         #open the file such that it clears everything then close it
-        f=open("/home/uwi/catkin_ws/src/remote_communication/scripts/reports.txt","w")
+        f=open("/home/uwi-sentry-agx/catkin_ws/src/remote_communication/scripts/reports.txt","w")
         f.close()
     else:
         #if the data is not recognized, this means that user data is coming in
         #open the file and write to it the incoming data
-        with open("/home/uwi/catkin_ws/src/remote_communication/scripts/reports.txt", 'a') as f:
+        with open("/home/uwi-sentry-agx/catkin_ws/src/remote_communication/scripts/reports.txt", 'a') as f:
             f.write(data.data+"\n")
         rospy.loginfo(rospy.get_caller_id() + 'this is a test')
 

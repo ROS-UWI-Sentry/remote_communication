@@ -84,7 +84,7 @@ def callback_heartbeat(data):
     #check if the message received is "connected" so we know that the remote 
     #is connected to rosbridge
     if (data.data=="connected"): #this also continues timing
-        rospy.loginfo("connected to remote")
+        rospy.loginfo(rospy.get_caller_id() + " connected to remote")
         #if the browser returns that it is connected within 30s of requesting, 
         #awaiting_response is set to false
         #else if it remains true after 30s then the remote is not connected
@@ -92,7 +92,7 @@ def callback_heartbeat(data):
         #we cannot set heartbeat=True here because whenever it is false 
         #the system will be shutting down
     elif (data.data=="on_sanitization_page"):
-        rospy.loginfo("received that the user is on the sanitzation page")
+        rospy.loginfo(rospy.get_caller_id() + " received that the user is on the sanitzation page")
         #start the process of heartbeating
         heartbeat=True 
         #in the event of reconnection we have to stop what happens while connection lost
@@ -111,7 +111,7 @@ def callback_sentry_control_topic(data):
         #while the user is on another page on the remote
         heartbeat=False
         no_connection_confirmed=False
-        rospy.loginfo("sanitization was stopped by the user, no more checking communication")
+        rospy.loginfo(rospy.get_caller_id() + " sanitization was stopped by the user, no more checking communication")
         
 #this function is for subscribing to messages
 def listener():
@@ -152,8 +152,8 @@ def listener():
             #if i is less than t
             if (i<t):
                 now = rospy.get_time()  
-                rospy.loginfo(now)
-                rospy.loginfo(i)
+                #rospy.loginfo(now)
+                #rospy.loginfo(i)
                 #increment i
                 i = i + 1
             #if i is the value of t(t seconds passed) and this is the first run or 
@@ -167,7 +167,7 @@ def listener():
                 c = 0
                 #request the remote to confrim its connection
                 pub_heartbeat_ros_remote.publish("connection_test")
-                rospy.loginfo("Connection request sent.")                   
+                rospy.loginfo(rospy.get_caller_id() + " Connection request sent.")                   
                 #set awaiting_response to true, so if in 30s no confirmation is received
                 #this condition will be skipped and the other one will be carried out
                 awaiting_response = True
@@ -183,7 +183,7 @@ def listener():
                 i = 0
                 #increment how many times this condition was entered
                 c = c + 1
-                rospy.loginfo("Connection request sent %s times.", c)
+                rospy.loginfo(rospy.get_caller_id() + " Connection request sent %s times.", c)
                 #has 6*t seconds (3 minutes) passed with no response from remote?
                 #or have we entered this condition 6 times?
                 if (c==6):
